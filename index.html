@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviator Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: #0f172a;
+            touch-action: manipulation;
+        }
+        .game-canvas {
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+        @keyframes crash-flash {
+            0%, 100% { background: #ef4444; }
+            50% { background: #b91c1c; }
+        }
+        .crash-animation {
+            animation: crash-flash 0.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">Aviator Game</h1>
+        
+        <!-- Game Display -->
+        <div class="max-w-2xl mx-auto bg-slate-800 rounded-lg p-4 mb-8">
+            <canvas id="gameCanvas" class="game-canvas w-full h-64 rounded-lg mb-4"></canvas>
+            <div class="text-center">
+                <div id="multiplier" class="text-4xl font-bold mb-2">1.00x</div>
+                <div id="status" class="text-xl mb-4">Place your bet</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="max-w-md mx-auto">
+            <div class="bg-slate-800 rounded-lg p-4 mb-4">
+                <div class="flex items-center gap-4 mb-4">
+                    <input type="number" id="betAmount" min="1" value="10" 
+                           class="w-full bg-slate-700 text-white px-4 py-2 rounded-lg">
+                    <button id="placeBetBtn" 
+                            class="bg-emerald-600 hover:bg-emerald-700 px-6 py-2 rounded-lg transition-colors">
+                        Bet
+                    </button>
+                </div>
+                <button id="cashoutBtn" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition-colors hidden">
+                    Cash Out
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="bg-slate-800 rounded-lg p-4">
+                <h2 class="text-xl font-bold mb-2">Statistics</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-gray-400">Balance</div>
+                        <div id="balance" class="text-xl font-bold">1000</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-400">Last Profit</div>
+                        <div id="lastProfit" class="text-xl font-bold">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const multiplierDisplay = document.getElementById('multiplier');
+        const statusDisplay = document.getElementById('status');
+        const betBtn = document.getElementById('placeBetBtn');
+        const cashoutBtn = document.getElementById('cashoutBtn');
+        const betInput = document.getElementById('betAmount');
+        const balanceDisplay = document.getElementById('balance');
+        const lastProfitDisplay = document.getElementById('lastProfit');
+
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        let balance = 1000;
+        let currentBet = 0;
+        let multiplier = 0;
+        let gameInterval;
+        let isPlaying = false;
+        let hasPlacedBet = false;
+        let crashPoint;
+
+        function updateBalance(amount) {
+            balance += amount;
+            balanceDisplay.textContent = balance.toFixed(2);
+        }
+
+        function startGame() {
+            if (!hasPlacedBet) return;
+            
+            isPlaying = true;
+            crashPoint = 1 + Math.random() * 4; // Random crash point between 1x and 5x
+            multiplier = 0;
+            
+            gameInterval = setInterval(() => {
+                multiplier += 0.01;
+                multiplierDisplay.textContent = multiplier.toFixed(2) + 'x';
+                drawGame();
+
+                if (multiplier >= crashPoint) {
+                    crashGame();
+                }
+            }, 50);
+        }
+
+        function crashGame() {
+            clearInterval(gameInterval);
+            isPlaying = false;
+            hasPlacedBet = false;
+            statusDisplay.textContent = 'CRASHED AT ' + multiplier.toFixed(2) + 'x';
+            statusDisplay.classList.add('crash-animation');
+            betBtn.disabled = false;
+            cashoutBtn.classList.add('hidden');
+            lastProfitDisplay.textContent = '-' + currentBet.toFixed(2);
+            lastProfitDisplay.classList.add('text-red-500');
+            currentBet = 0;
+            setTimeout(() => {
+                statusDisplay.classList.remove('crash-animation');
+                betBtn.textContent = 'Bet';
+            }, 2000);
+        }
+
+        function cashout() {
+            if (!isPlaying) return;
+            
+            clearInterval(gameInterval);
+            const profit = currentBet * multiplier - currentBet;
+            updateBalance(currentBet * multiplier);
+            lastProfitDisplay.textContent = '+' + profit.toFixed(2);
+            lastProfitDisplay.classList.remove('text-red-500');
+            lastProfitDisplay.classList.add('text-green-500');
+            
+            isPlaying = false;
+            hasPlacedBet = false;
+            statusDisplay.textContent = 'CASHED OUT AT ' + multiplier.toFixed(2) + 'x';
+            betBtn.disabled = false;
+            cashoutBtn.classList.add('hidden');
+            currentBet = 0;
+            betBtn.textContent = 'Bet';
+        }
+
+        function drawGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw flight path
+            ctx.beginPath();
+            ctx.moveTo(50, canvas.height - 50);
+            const x = 50 + (multiplier - 1) * 100;
+            const y = canvas.height - 50 - (multiplier - 1) * 50;
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Draw airplane
+            ctx.fillStyle = '#4ade80';
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        betBtn.addEventListener('click', () => {
+            if (isPlaying) return;
+            
+            const betAmount = Number(betInput.value);
+            if (betAmount <= 0 || betAmount > balance) {
+                alert('Invalid bet amount!');
+                return;
+            }
+
+            currentBet = betAmount;
+            updateBalance(-betAmount);
+            hasPlacedBet = true;
+            betBtn.disabled = true;
+            cashoutBtn.classList.remove('hidden');
+            statusDisplay.textContent = 'Flying...';
+            startGame();
+        });
+
+        cashoutBtn.addEventListener('click', cashout);
+
+        // Mobile touch handling
+        cashoutBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            cashout();
+        });
+    </script>
+<script>document.body.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); return }, { passive: false })</script>
+	</body>
+</html>
